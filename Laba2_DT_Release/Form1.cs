@@ -780,6 +780,7 @@ namespace Laba2_DT_Release
 
             
 
+
             //textBoxFAL.Text = ;
         }
 
