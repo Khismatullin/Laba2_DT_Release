@@ -46,6 +46,9 @@ namespace Laba2_DT_Release
         //format of string for alignment text in rect
         StringFormat sf = new StringFormat();
 
+        //name of root
+        string keyRootRect;
+
         string[] eventX;
 
         //passed vertices
@@ -61,6 +64,12 @@ namespace Laba2_DT_Release
 
         //ending events
         string[] endingEvents;
+
+        //need for calling method "calculate" after event "Paint" when loading from file
+        bool IsDownload = false;
+
+        //need for control changing value of dataGridView 
+        bool IsChangeValue = false;
 
         //probability ending event
         Dictionary<string, double> probEndingEvents = new Dictionary<string, double>();
@@ -98,7 +107,6 @@ namespace Laba2_DT_Release
             if (e.KeyCode == Keys.Delete && IsDelete == true)
             {
                 listRect.Remove(selectedRect);
-                listBox_dangerous_states.Items.Remove(selectedRect);
 
                 //remove arc by key (1 arc, because it my bug with selected structes of data)
                 listArcs.Remove(selectedRect);
@@ -134,7 +142,6 @@ namespace Laba2_DT_Release
             listRect.Clear();
             listArcs.Clear();
             probEndingEvents.Clear();
-            listBox_dangerous_states.Items.Clear();
             dataGridViewProbEvents.ColumnCount = 2;
             dataGridViewProbEvents.Columns[0].HeaderText = String.Format("Инициирующее событие");
             dataGridViewProbEvents.Columns[1].HeaderText = String.Format("Вероятность");
@@ -321,12 +328,6 @@ namespace Laba2_DT_Release
                     //text in rect
                     pictBoxBM_G.DrawString(rect.Key, new Font("Helvetica", 8, FontStyle.Regular), Brushes.Black, rect.Value, sf);
 
-                    //add in list
-                    if ((rect.Key[0] != 'И' && !Char.IsDigit(rect.Key[1])) && (rect.Key[0] != 'И' && rect.Key[1] != 'Л' && rect.Key[2] != 'И' && !Char.IsDigit(rect.Key[3])))
-                    {
-                        listBox_dangerous_states.Items.Add(rect.Value);
-                    }
-
                     //draw arcs
                     foreach (var arc in listArcs)
                         pictBoxBM_G.DrawLine(penBlack, listRect[arc.Value].X + listRect[arc.Value].Width / 2, listRect[arc.Value].Y + listRect[arc.Value].Height, listRect[arc.Key].X + listRect[arc.Key].Width / 2, listRect[arc.Key].Y);
@@ -336,6 +337,9 @@ namespace Laba2_DT_Release
                     pictureBox1.Invalidate();
                 }
             }
+
+            //for calling method "calculate" after event "Paint"
+            IsDownload = true;
         }
 
         //for toolStrip need in contextMenu choose "DropDownButton" and set property "DisplayStyle" = Text
@@ -394,33 +398,14 @@ namespace Laba2_DT_Release
             Application.Exit();
         }
 
-        private void buttonRender_Click(object sender, EventArgs e)
-        {
-
-        }
-
         private void buttonClear_Click(object sender, EventArgs e)
         {
             //delete all rect, arcs and other
             listRect.Clear();
             listArcs.Clear();
-            listBox_dangerous_states.Items.Clear();
 
             //update
             pictureBox1.Invalidate();
-        }
-
-        private void buttonChange_Click(object sender, EventArgs e)
-        {
-            int index = listBox_dangerous_states.SelectedIndex;
-
-            //delete by index
-            listBox_dangerous_states.Items.RemoveAt(index);
-
-            //insert by index
-            listBox_dangerous_states.Items.Insert(index, textBoxEditState.Text);
-
-            textBoxEditState.Text = "";
         }
 
         private void pictureBox1_MouseDown(object sender, MouseEventArgs e)
@@ -486,12 +471,6 @@ namespace Laba2_DT_Release
                     if (!listRect.Keys.Contains(textBoxNameVertex.Text))
                     {                        
                         listRect.Add(textBoxNameVertex.Text, rectangle);
-
-                        //add in list
-                        if ((textBoxNameVertex.Text[0] != 'И' || !Char.IsDigit(textBoxNameVertex.Text[1])) && (textBoxNameVertex.Text[0] != 'И' || textBoxNameVertex.Text[1] != 'Л' || textBoxNameVertex.Text[2] != 'И' || !Char.IsDigit(textBoxNameVertex.Text[3])))
-                        {
-                            listBox_dangerous_states.Items.Add(textBoxNameVertex.Text);
-                        }
                     }
                     else
                     {
@@ -728,7 +707,7 @@ namespace Laba2_DT_Release
             
             //key of rect with minimal Y for root rect
             int minY = pictureBox1.Height;
-            string keyRootRect = "";
+            keyRootRect = "";
 
             //found root of tree
             foreach (var rect in listRect)
@@ -764,24 +743,55 @@ namespace Laba2_DT_Release
             for (int i = 0; i < listRect.Count + listArcs.Count; i++)
             {
                 if (failEventX[i] == true)
+                {
                     eventX[i] = "";
+
+                    for (int j = i; j < listRect.Count + listArcs.Count - 1; j++)
+                    {
+                        eventX[j] = eventX[j + 1];
+                    }
+
+                    //offset marks
+                    for (int j = i; j < listRect.Count + listArcs.Count - 1; j++)
+                    {
+                        failEventX[j] = failEventX[j + 1];
+                    }
+
+                    //if next eventX also equal true
+                    if (failEventX[i] == true && eventX[i] != "")
+                        i--;
+                }
             }
 
-            //add ending event with probability previously clear old values
-            listBox_initEvents.Items.Clear();
-            for (int i = 0; i < endingEvents.Length; i++)
+            //delete empty eventX
+            for (int i = listRect.Count + listArcs.Count - 1; i >= 0; i--)
             {
-                probEndingEvents.Add(endingEvents[i], 0.0);
-                listBox_initEvents.Items.Add(endingEvents[i]);
+                if (eventX[i] == "")
+                    Array.Resize(ref eventX, eventX.Length - 1);
             }
 
-            //if(probEndingEvents.Count != 0)
-            //    ;
+            //add to dataGridView
+            if (IsDownload == false)
+            {
+                dataGridViewProbEvents.ColumnCount = 2;
+                dataGridViewProbEvents.Columns[0].HeaderText = String.Format("Инициирующее событие");
+                dataGridViewProbEvents.Columns[1].HeaderText = String.Format("Вероятность");
 
-            
+                dataGridViewProbEvents.RowCount = endingEvents.Length;
+                for (int i = 0; i < dataGridViewProbEvents.RowCount; i++)
+                {
+                    dataGridViewProbEvents[0, i].Value = endingEvents[i];
+                    dataGridViewProbEvents[1, i].Value = 0;
+                    dataGridViewProbEvents.Rows[i].HeaderCell.Value = String.Format("{0}", i + 1);
+                }
+            }
 
-
-            //textBoxFAL.Text = ;
+            //calculate if loading from file
+            if (IsDownload == true)
+            {
+                calculate();
+                IsDownload = false;
+            }
         }
 
         //recursively found links with rect-s
@@ -789,6 +799,10 @@ namespace Laba2_DT_Release
         {
             foreach (var secondRect in listArcs)
             {
+                //if root then end of eventX[i]
+                if (eventX[c] != "" && secondRect.Value == keyRootRect && secondRect.Key[0] == 'И' && secondRect.Key[1] == 'Л' && secondRect.Key[2] == 'И' && Char.IsDigit(secondRect.Key[3]))
+                    break;
+
                 if (firstRect == secondRect.Value)
                 {
                     //down
@@ -818,7 +832,7 @@ namespace Laba2_DT_Release
                             Array.Resize(ref endingEvents, endingEvents.Length + 1);
                             endingEvents[endingEvents.Length - 1] = secondRect.Key;
                         }
-                        break;
+                        //break;
                     }
                     
                     //up
@@ -854,10 +868,16 @@ namespace Laba2_DT_Release
                                 }
 
                                 //save (previously check on lower rect, check on two distinct rect, check on distinct arcs)
-                                if (endEvent2 == true && !markEvents.Keys.Contains(secondRect.Key) && !eventX.Contains(eventX[c] + secondRect.Key + " - "))
+                                if (endEvent2 == true && !markEvents.Keys.Contains(a.Key) && !eventX.Contains(eventX[c] + a.Key + " - "))
                                 {
-                                    eventX[c] += secondRect.Key + " - ";
-                                    markEvents.Add(secondRect.Key, true);
+                                    eventX[c] += a.Key + " - ";
+                                    markEvents.Add(a.Key, true);
+
+                                    if (!endingEvents.Contains(a.Key))
+                                    {
+                                        Array.Resize(ref endingEvents, endingEvents.Length + 1);
+                                        endingEvents[endingEvents.Length - 1] = a.Key;
+                                    }
                                 }
 
                                 int times = 0;
@@ -877,9 +897,124 @@ namespace Laba2_DT_Release
                                 }
                             }
                         }
+                        break;
                     }
                 }
             }
+        }
+
+        private void buttonCalculate_Click(object sender, EventArgs e)
+        {
+            calculate();            
+        }
+
+        void calculate()
+        {
+            //clear old notes
+            textBox_evaluationProbability.Text = "";
+            textBox_risk.Text = "";
+            richTextBoxFAL.Text = "";
+
+            //start formation of probability function
+            if (listRect.Count != 0)
+                richTextBoxProbabilityFunction.Text = "1-(";
+
+            //total evaluation of probability
+            double totalEvalProb = 1.0;
+
+            //output FAL
+            for (int i = 0; i < eventX.Length; i++)
+            {
+                int j = 0;
+                string evnt = "";
+                double prob = 0.0;
+                richTextBoxFAL.Text += "(";
+
+                //part evaluation of probability
+                double evalProb = 1.0;
+
+                //continue formation of probability function
+                richTextBoxProbabilityFunction.Text += "(1-";
+
+                while (j < eventX[i].Length)
+                {
+                    while (eventX[i][j] != ' ' || eventX[i][j + 1] != '-' || eventX[i][j + 2] != ' ')
+                    {
+                        evnt += eventX[i][j];
+                        j++;
+                    }
+
+                    //find probability of event
+                    for (int k = 0; k < dataGridViewProbEvents.RowCount; k++)
+                    {
+                        if (dataGridViewProbEvents[0, k].Value.ToString() == evnt)
+                        {
+                            prob = Convert.ToDouble(dataGridViewProbEvents[1, k].Value);
+                            break;
+                        }
+                    }
+                    richTextBoxFAL.Text += prob + "/\\";
+
+                    //calculate
+                    evalProb *= prob;
+
+                    //continue formation of probability function
+                    richTextBoxProbabilityFunction.Text += prob.ToString() + "*";
+
+                    //for next step
+                    evnt = "";
+                    j += 3;
+                }
+
+                //evaluation of probability
+                evalProb = 1.0 - evalProb;
+                totalEvalProb *= evalProb;
+
+                //delete "\\"
+                string tempStr = richTextBoxFAL.Text;
+                richTextBoxFAL.Text = "";
+                for (int k = 0; k < tempStr.Length - 2; k++)
+                {
+                    richTextBoxFAL.Text += tempStr[k];
+                }
+                richTextBoxFAL.Text += ")\\/";
+
+                //delete "*" and add ")*" in the end of probability function
+                string tempStr1 = richTextBoxProbabilityFunction.Text;
+                richTextBoxProbabilityFunction.Text = "";
+                for (int k = 0; k < tempStr1.Length - 1; k++)
+                {
+                    richTextBoxProbabilityFunction.Text += tempStr1[k];
+                }
+                richTextBoxProbabilityFunction.Text += ")*";
+            }
+
+            //final evaluation of probability
+            totalEvalProb = 1.0 - totalEvalProb;
+            textBox_evaluationProbability.Text = Math.Round(totalEvalProb, 3).ToString();
+
+            //delete "\\/"
+            string tempStr2 = richTextBoxFAL.Text;
+            richTextBoxFAL.Text = "";
+            for (int k = 0; k < tempStr2.Length - 2; k++)
+            {
+                richTextBoxFAL.Text += tempStr2[k];
+            }
+
+            //delete "*" and add ")" in the end of probability function
+            string tempStr3 = richTextBoxProbabilityFunction.Text;
+            richTextBoxProbabilityFunction.Text = "";
+            for (int k = 0; k < tempStr3.Length - 1; k++)
+            {
+                richTextBoxProbabilityFunction.Text += tempStr3[k];
+            }
+
+            if (listRect.Count != 0)
+                richTextBoxProbabilityFunction.Text += ")";
+
+            //risk implementation of danger state
+            if (listRect.Count != 0)
+                textBox_risk.Text = (Convert.ToDouble(textBoxCostOfLosses.Text) * Convert.ToDouble(textBox_evaluationProbability.Text)).ToString();
         }
     }
 }
